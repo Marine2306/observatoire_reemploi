@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Observatoire Réemploi — Vérification CCTP</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f7f6f3;
+    --bg-tertiary: #f0efe9;
+    --text: #1a1a18;
+    --text-secondary: #6b6a65;
+    --text-tertiary: #a0a09b;
+    --border: rgba(0,0,0,0.12);
+    --border-md: rgba(0,0,0,0.22);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --green: #1D9E75;
+    --green-light: #EAF3DE;
+    --green-dark: #0F6E56;
+    --green-text: #27500A;
+    --amber: #EF9F27;
+    --amber-light: #FAEEDA;
+    --amber-text: #633806;
+    --red-light: #FCEBEB;
+    --red-text: #791F1F;
+    --blue-light: #E6F1FB;
+    --blue-text: #0C447C;
+    --purple-light: #EEEDFE;
+    --purple-text: #3C3489;
+    --gray-light: #F1EFE8;
+    --gray-text: #444441;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --bg-secondary: #252523;
+      --bg-tertiary: #2e2e2b;
+      --text: #f0efe9;
+      --text-secondary: #9e9d97;
+      --text-tertiary: #6b6a65;
+      --border: rgba(255,255,255,0.1);
+      --border-md: rgba(255,255,255,0.2);
+      --green-light: #0a2e1e;
+      --green-text: #9FE1CB;
+      --amber-light: #2e1e00;
+      --amber-text: #FAC775;
+      --red-light: #2e0a0a;
+      --red-text: #F09595;
+      --blue-light: #0a1e2e;
+      --blue-text: #B5D4F4;
+      --purple-light: #1a1840;
+      --purple-text: #CECBF6;
+      --gray-light: #2a2a27;
+      --gray-text: #D3D1C7;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg-tertiary);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── Layout ── */
+  .shell {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 2rem;
+  }
+  .page-header h1 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .page-header p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .logo-dot {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--green); display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-dot i { color: #fff; font-size: 18px; }
+
+  /* ── Topbar progress ── */
+  .topbar {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem;
+  }
+  .counter { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+  .counter strong { font-size: 24px; font-weight: 600; color: var(--text); margin-right: 3px; }
+  .progress { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width .4s ease; }
+  .skip-btn {
+    font-size: 12px; color: var(--text-tertiary); cursor: pointer;
+    border: none; background: transparent; padding: 5px 8px; border-radius: var(--radius-md);
+    display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  }
+  .skip-btn:hover { background: var(--bg-secondary); color: var(--text-secondary); }
+
+  /* ── Card ── */
+  .card {
+    background: var(--bg);
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: opacity .18s, transform .18s;
+  }
+  .card.out { opacity: 0; transform: translateX(28px); }
+
+  /* ── Card head ── */
+  .card-head { padding: 16px 20px 14px; border-bottom: 0.5px solid var(--border); }
+  .card-titre { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 10px; line-height: 1.45; }
+  .meta-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  .meta-row:last-of-type { margin-bottom: 0; }
+
+  .badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .bg  { background: var(--gray-light);   color: var(--gray-text); }
+  .bb  { background: var(--blue-light);   color: var(--blue-text); }
+  .bv  { background: var(--green-light);  color: var(--green-text); }
+  .bo  { background: var(--amber-light);  color: var(--amber-text); }
+  .br  { background: var(--red-light);    color: var(--red-text); }
+  .bp  { background: var(--purple-light); color: var(--purple-text); }
+
+  .link {
+    font-size: 12px; color: #185FA5; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 3px;
+  }
+  .link:hover { text-decoration: underline; }
+
+  /* ── Score ── */
+  .score-wrap { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .score-label { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+  .score-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+  .score-val { font-size: 12px; font-weight: 600; min-width: 28px; text-align: right; }
+  .extrait {
+    font-size: 11px; color: var(--text-secondary);
+    background: var(--bg-secondary); border-radius: var(--radius-md);
+    padding: 7px 10px; margin-top: 8px; line-height: 1.55;
+    border-left: 2px solid var(--green); font-style: italic;
+  }
+
+  /* ── Global note ── */
+  .global-note {
+    padding: 10px 20px; border-bottom: 0.5px solid var(--border);
+    background: var(--bg-secondary);
+  }
+  .gl-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 5px; display: flex; align-items: center; gap: 4px; }
+  .global-note textarea {
+    width: 100%; font-size: 12px; height: 42px; padding: 5px 9px;
+    border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    resize: none; color: var(--text); background: var(--bg); font-family: inherit;
+  }
+  .global-note textarea:focus { outline: none; border-color: var(--green); }
+
+  /* ── Lots ── */
+  .lots-list { padding: 10px 20px; }
+  .lot-item { border-bottom: 0.5px solid var(--border); padding: 11px 0; }
+  .lot-item:last-child { border-bottom: none; }
+  .lot-header { display: flex; align-items: flex-start; gap: 10px; }
+  .lot-n { font-size: 11px; color: var(--text-tertiary); min-width: 22px; padding-top: 2px; font-weight: 600; }
+  .lot-info { flex: 1; min-width: 0; }
+  .lot-titre { font-size: 13px; color: var(--text); margin-bottom: 2px; line-height: 1.4; }
+  .lot-cpv { font-size: 11px; color: var(--text-tertiary); }
+  .reemploi-toggle { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .r-label { font-size: 11px; color: var(--text-secondary); }
+
+  /* Toggle */
+  .toggle-wrap { position: relative; width: 38px; height: 22px; cursor: pointer; flex-shrink: 0; }
+  .toggle-track {
+    width: 38px; height: 22px; border-radius: 11px;
+    background: #C8C7C0; border: 0.5px solid #b0b0a8;
+    transition: background .15s, border-color .15s;
+  }
+  .toggle-track.on { background: var(--green); border-color: var(--green-dark); }
+  .toggle-thumb {
+    position: absolute; top: 4px; left: 4px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #fff; transition: left .15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .toggle-thumb.on { left: 20px; }
+
+  /* Lot detail */
+  .lot-detail {
+    margin-top: 10px; padding: 12px 14px;
+    background: var(--bg-secondary); border-radius: var(--radius-md);
+    border: 0.5px solid var(--border); display: none;
+  }
+  .lot-detail.open { display: block; }
+  .df { margin-bottom: 10px; }
+  .df:last-child { margin-bottom: 0; }
+  .df label { font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 5px; }
+  .df input {
+    width: 100%; font-size: 13px; height: 32px; padding: 0 9px;
+    border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    color: var(--text); background: var(--bg); font-family: inherit;
+  }
+  .df input:focus { outline: none; border-color: var(--green); }
+  .df textarea {
+    width: 100%; font-size: 12px; padding: 6px 9px; height: 58px;
+    resize: none; border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+    color: var(--text); background: var(--bg); font-family: inherit;
+  }
+  .df textarea:focus { outline: none; border-color: var(--green); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Checkboxes multi */
+  .checkboxes { display: flex; flex-wrap: wrap; gap: 5px; }
+  .cbx {
+    font-size: 11px; padding: 4px 10px; border-radius: 20px;
+    border: 0.5px solid var(--border-md); cursor: pointer;
+    color: var(--text-secondary); background: var(--bg); font-family: inherit;
+    transition: all .1s;
+  }
+  .cbx:hover { background: var(--bg-tertiary); }
+  .cbx.on { background: var(--green-light); color: var(--green-text); border-color: var(--green); font-weight: 500; }
+
+  /* ── Footer ── */
+  .card-foot {
+    padding: 14px 20px;
+    border-top: 0.5px solid var(--border);
+    display: flex; gap: 10px;
+  }
+  .btn-valider {
+    flex: 1; font-size: 13px; font-weight: 600; padding: 10px 0;
+    border-radius: var(--radius-md); border: 1.5px solid var(--green);
+    color: var(--green-dark); background: transparent; cursor: pointer;
+    font-family: inherit; transition: background .12s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-valider:hover { background: var(--green-light); }
+  .btn-valider:active { transform: scale(0.99); }
+
+  /* ── Done ── */
+  .done-screen { text-align: center; padding: 4rem 1rem; }
+  .done-icon { font-size: 48px; color: var(--green); margin-bottom: 1.25rem; }
+  .done-title { font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+  .done-sub { font-size: 14px; color: var(--text-secondary); }
+
+  /* ── Loading / error ── */
+  .loading-msg { text-align: center; padding: 3rem; color: var(--text-secondary); font-size: 14px; }
+  .error-msg {
+    background: var(--red-light); border: 0.5px solid rgba(226,75,74,0.3);
+    border-radius: var(--radius-md); padding: 11px 14px;
+    font-size: 13px; color: var(--red-text); margin-bottom: 1rem;
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(12px);
+    background: var(--bg); border: 0.5px solid var(--border-md);
+    border-radius: var(--radius-lg); padding: 10px 18px;
+    font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 7px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast i { color: var(--green); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="page-header">
+    <div class="logo-dot"><i class="ti ti-recycle"></i></div>
+    <div>
+      <h1>Observatoire Réemploi</h1>
+      <p>Vérification des clauses CCTP</p>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="counter"><strong id="nb-reste">—</strong> à vérifier</div>
+    <div class="progress"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+    <button class="skip-btn" onclick="skip()">
+      <i class="ti ti-arrow-right"></i> Passer
+    </button>
+  </div>
+
+  <div id="error-zone"></div>
+  <div id="loading" class="loading-msg">
+    <i class="ti ti-loader-2"></i> Chargement des marchés…
+  </div>
+
+  <div class="card" id="main-card" style="display:none;">
+    <div class="card-head" id="card-head"></div>
+    <div class="global-note">
+      <div class="gl-label">
+        <i class="ti ti-note" style="font-size:13px;"></i>
+        Note globale sur ce marché
+      </div>
+      <textarea id="g-notes" placeholder="Observations générales, lien CCTP, contexte…"></textarea>
+    </div>
+    <div class="lots-list" id="lots-list"></div>
+    <div class="card-foot">
+      <button class="btn-valider" onclick="valider()">
+        <i class="ti ti-check"></i> Valider et passer au suivant
+      </button>
+    </div>
+  </div>
+
+  <div class="done-screen" id="done-screen" style="display:none;">
+    <div class="done-icon"><i class="ti ti-circle-check"></i></div>
+    <div class="done-title">Tous les marchés sont vérifiés !</div>
+    <div class="done-sub">Aucun marché en attente de vérification.</div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"><i class="ti ti-check"></i> Enregistré</div>
+
+<script>
+const SUPABASE_URL = 'https://ugvnkzesnmtfbjmpypzp.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVndm5remVzbm10ZmJqbXB5cHpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NDcwNTAsImV4cCI6MjA5NDMyMzA1MH0.O9sXbKXEyWGV_-3851zJMuMEFKchC01OB5PoOlCmD9I';
+
+const TYPE_OPTIONS = [
+  'Réemploi in situ',
+  'Réemploi ex situ',
+  'PEMD obligatoire',
+  'Déconstruction sélective',
+  'Diagnostic ressources'
+];
+
+let queue = [];
+let total = 0;
+let done = 0;
+let lotToggles = {};
+let lotTypes = {};
+
+async function loadData() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/v_lots_complets?statut_lot=eq.a_verifier&select=*&order=date_publication.desc&limit=300`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!res.ok) {
+      const t = await res.text();
+      showError(`Erreur Supabase (${res.status}) : ${t.substring(0, 120)}`);
+      return;
+    }
+    const rows = await res.json();
+    document.getElementById('loading').style.display = 'none';
+
+    if (!rows.length) {
+      document.getElementById('done-screen').style.display = 'block';
+      return;
+    }
+
+    const map = new Map();
+    rows.forEach(r => {
+      if (!map.has(r.marche_id)) map.set(r.marche_id, { ...r, lots: [] });
+      map.get(r.marche_id).lots.push(r);
+    });
+    queue = Array.from(map.values());
+    total = queue.length;
+    render();
+  } catch (e) {
+    showError('Impossible de joindre Supabase. Vérifiez la clé et la connexion.');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('error-zone').innerHTML =
+    `<div class="error-msg"><i class="ti ti-alert-circle"></i> ${msg}</div>`;
+  document.getElementById('loading').style.display = 'none';
+}
+
+function scoreColor(s) {
+  if (s >= 4) return { fill: '#1D9E75', text: '#0F6E56' };
+  if (s >= 2) return { fill: '#EF9F27', text: '#854F0B' };
+  if (s === 1) return { fill: '#F0997B', text: '#712B13' };
+  return { fill: '#D3D1C7', text: '#888780' };
+}
+
+function fmt(date) {
+  if (!date) return null;
+  return new Date(date).toLocaleDateString('fr-FR');
+}
+
+function render() {
+  if (!queue.length) {
+    document.getElementById('main-card').style.display = 'none';
+    document.getElementById('done-screen').style.display = 'block';
+    return;
+  }
+  document.getElementById('main-card').style.display = 'block';
+  const m = queue[0];
+
+  document.getElementById('nb-reste').textContent = queue.length;
+  document.getElementById('prog').style.width = Math.round(done / total * 100) + '%';
+
+  const sc = m.score_reemploi || 0;
+  const scC = scoreColor(sc);
+  const scPct = Math.min(Math.round(sc / 5 * 100), 100);
+
+  let h = `<div class="card-titre">${esc(m.titre_marche || 'Marché sans titre')}</div>`;
+
+  // Ligne acheteur + localisation
+  h += `<div class="meta-row">`;
+  if (m.acheteur_nom)        h += `<span class="badge bb"><i class="ti ti-building"></i>${esc(m.acheteur_nom)}</span>`;
+  if (m.acheteur_departement) h += `<span class="badge bg">${esc(m.acheteur_departement)}${m.acheteur_region ? ' · ' + esc(m.acheteur_region) : ''}</span>`;
+  if (fmt(m.date_publication)) h += `<span class="badge bg"><i class="ti ti-calendar"></i>${fmt(m.date_publication)}</span>`;
+  h += `</div>`;
+
+  // Ligne contexte marché
+  h += `<div class="meta-row">`;
+  if (m.montant_estime)      h += `<span class="badge bp"><i class="ti ti-currency-euro"></i>${esc(m.montant_estime)}</span>`;
+  if (m.nature_operation)    h += `<span class="badge bg">${esc(m.nature_operation)}</span>`;
+  if (m.batiment_typologie)  h += `<span class="badge bg">${esc(m.batiment_typologie)}</span>`;
+  if (m.annee_construction)  h += `<span class="badge bg">Constr. ${m.annee_construction}</span>`;
+  h += `</div>`;
+
+  // Ligne clauses et alertes
+  h += `<div class="meta-row">`;
+  if (m.critere_environnemental) h += `<span class="badge bv"><i class="ti ti-leaf"></i>Critère env.</span>`;
+  if (m.clause_sociale)          h += `<span class="badge bg">Clause sociale</span>`;
+  if (m.clause_insertion)        h += `<span class="badge bg">Clause insertion</span>`;
+  if (m.diag_pemd_mentionne)     h += `<span class="badge bo"><i class="ti ti-clipboard-list"></i>Diag PEMD</span>`;
+  if (fmt(m.date_limites_offres)) h += `<span class="badge br"><i class="ti ti-clock"></i>Limite : ${fmt(m.date_limites_offres)}</span>`;
+  h += `</div>`;
+
+  // Lien annonce
+  if (m.url_annonce) {
+    h += `<div class="meta-row">
+      <a href="${esc(m.url_annonce)}" class="link" target="_blank" rel="noopener">
+        <i class="ti ti-external-link"></i> Voir l'annonce BOAMP
+      </a>
+    </div>`;
+  }
+
+  // Score réemploi
+  h += `<div class="score-wrap">
+    <span class="score-label">Score réemploi détecté</span>
+    <div class="score-bar"><div class="score-fill" style="width:${scPct}%;background:${scC.fill};"></div></div>
+    <span class="score-val" style="color:${scC.text};">${sc}/5</span>
+  </div>`;
+
+  // Extrait texte
+  if (m.texte_extrait_reemploi) {
+    const txt = m.texte_extrait_reemploi.substring(0, 220);
+    h += `<div class="extrait"><i class="ti ti-quote" style="font-size:12px;margin-right:4px;"></i>${esc(txt)}${m.texte_extrait_reemploi.length > 220 ? '…' : ''}</div>`;
+  }
+
+  document.getElementById('card-head').innerHTML = h;
+  document.getElementById('g-notes').value = '';
+  lotToggles = {};
+  lotTypes = {};
+  m.lots.forEach(l => { lotToggles[l.id_lot] = false; lotTypes[l.id_lot] = []; });
+
+  document.getElementById('lots-list').innerHTML = m.lots.map(l => `
+    <div class="lot-item" id="li-${l.id_lot}">
+      <div class="lot-header">
+        <div class="lot-n">L${l.numero_lot || 1}</div>
+        <div class="lot-info">
+          <div class="lot-titre">${esc(l.titre_lot || 'Lot sans titre')}</div>
+          ${l.libelle_cpv ? `<div class="lot-cpv">${esc(l.libelle_cpv)}</div>` : ''}
+        </div>
+        <div class="reemploi-toggle">
+          <span class="r-label">Réemploi</span>
+          <div class="toggle-wrap" onclick="toggleLot('${l.id_lot}')">
+            <div class="toggle-track" id="track-${l.id_lot}"></div>
+            <div class="toggle-thumb" id="thumb-${l.id_lot}"></div>
+          </div>
+        </div>
+      </div>
+      <div class="lot-detail" id="det-${l.id_lot}">
+        <div class="df">
+          <label>Types de clause (choix multiples)</label>
+          <div class="checkboxes" id="cbx-${l.id_lot}">
+            ${TYPE_OPTIONS.map(t => `<button class="cbx" onclick="toggleType('${l.id_lot}','${t}')">${t}</button>`).join('')}
+          </div>
+        </div>
+        <div class="two">
+          <div class="df">
+            <label>Matériaux visés</label>
+            <input type="text" id="mat-${l.id_lot}" placeholder="tuiles, parquet, acier…" />
+          </div>
+          <div class="df">
+            <label>Objectif (%)</label>
+            <input type="text" id="obj-${l.id_lot}" placeholder="Ex : 20" />
+          </div>
+        </div>
+        <div class="df">
+          <label>Notes (page CCTP, extrait…)</label>
+          <textarea id="note-${l.id_lot}" placeholder="Ex : p.34 — le CCTP mentionne 20% de matériaux réemployés"></textarea>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function toggleLot(id) {
+  lotToggles[id] = !lotToggles[id];
+  const on = lotToggles[id];
+  document.getElementById('track-' + id).className = 'toggle-track' + (on ? ' on' : '');
+  document.getElementById('thumb-' + id).className = 'toggle-thumb' + (on ? ' on' : '');
+  document.getElementById('det-' + id).classList.toggle('open', on);
+}
+
+function toggleType(lotId, type) {
+  const arr = lotTypes[lotId] || [];
+  const i = arr.indexOf(type);
+  if (i >= 0) arr.splice(i, 1); else arr.push(type);
+  lotTypes[lotId] = arr;
+  document.querySelectorAll(`#cbx-${lotId} .cbx`).forEach(b => {
+    b.classList.toggle('on', arr.includes(b.textContent.trim()));
+  });
+}
+
+async function valider() {
+  const m = queue[0];
+  const gNotes = document.getElementById('g-notes').value.trim();
+  const today = new Date().toISOString().split('T')[0];
+
+  const btn = document.querySelector('.btn-valider');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Enregistrement…';
+
+  const promises = m.lots.map(l => {
+    const hasReemploi = lotToggles[l.id_lot];
+    const payload = {
+      statut_lot: 'verifie',
+      verifie_cctp: hasReemploi,
+      verifie_le: today,
+    };
+    if (hasReemploi) {
+      const types = lotTypes[l.id_lot];
+      if (types && types.length) payload.type_reemploi = types.join(', ');
+      const mat  = document.getElementById('mat-'  + l.id_lot)?.value.trim();
+      const obj  = document.getElementById('obj-'  + l.id_lot)?.value.trim();
+      const note = document.getElementById('note-' + l.id_lot)?.value.trim();
+      if (mat) payload.materiaux_vises = mat;
+      if (obj) payload.objectif_reemploi = parseFloat(obj) || null;
+      const notesFull = [note, gNotes].filter(Boolean).join(' | ');
+      if (notesFull) payload.notes_verification = notesFull;
+    } else {
+      if (gNotes) payload.notes_verification = gNotes;
+    }
+    return fetch(`${SUPABASE_URL}/rest/v1/lots?id_lot=eq.${l.id_lot}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify(payload)
+    });
+  });
+
+  await Promise.all(promises);
+  showToast();
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-check"></i> Valider et passer au suivant';
+  advance();
+}
+
+function advance() {
+  const card = document.getElementById('main-card');
+  card.classList.add('out');
+  setTimeout(() => { card.classList.remove('out'); done++; queue.shift(); render(); }, 200);
+}
+
+function skip() {
+  const m = queue.shift();
+  queue.push(m);
+  const card = document.getElementById('main-card');
+  card.classList.add('out');
+  setTimeout(() => { card.classList.remove('out'); render(); }, 200);
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadData();
+</script>
+</body>
+</html>
