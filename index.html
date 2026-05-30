@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Observatoire Réemploi</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root {
     --bg: #ffffff;
@@ -160,7 +161,7 @@
 
   .global-note { padding: 10px 20px; border-bottom: 0.5px solid var(--border); background: var(--bg-secondary); }
   .gl-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 5px; display: flex; align-items: center; gap: 4px; }
-  .global-note textarea { width: 100%; font-size: 12px; height: 42px; padding: 5px 9px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md); resize: none; color: var(--text); background: var(--bg); font-family: inherit; }
+  .global-note textarea { width: 100%; font-size: 12px; min-height: 42px; padding: 5px 9px; border: 0.5px solid var(--border-md); border-radius: var(--radius-md); resize: vertical; color: var(--text); background: var(--bg); font-family: inherit; transition: height .2s; }
   .global-note textarea:focus { outline: none; border-color: var(--green); }
 
   .lots-list { padding: 10px 20px; }
@@ -221,6 +222,129 @@
 
   @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
   .skel { background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-tertiary) 50%, var(--bg-secondary) 75%); background-size: 800px 100%; animation: shimmer 1.4s infinite linear; border-radius: 6px; }
+
+  /* ══════════════════════
+     ZONE ANALYSE CCTP
+  ══════════════════════ */
+  .cctp-zone {
+    padding: 12px 20px;
+    border-bottom: 0.5px solid var(--border);
+    background: var(--bg-secondary);
+  }
+  .cctp-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .cctp-zone-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 1;
+    font-weight: 500;
+  }
+  .btn-cctp {
+    font-size: 11px;
+    padding: 5px 13px;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-md);
+    color: var(--text-secondary);
+    background: var(--bg);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all .12s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .btn-cctp:hover {
+    border-color: var(--green);
+    color: var(--green-dark);
+    background: var(--green-light);
+  }
+  .cctp-results-wrap { margin-top: 10px; display: flex; flex-direction: column; gap: 12px; }
+  .cctp-file-group {}
+  .cctp-file-tag {
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    font-weight: 500;
+  }
+  .cctp-file-tag .cctp-count-ok  { color: var(--green-text); font-weight: 600; }
+  .cctp-file-tag .cctp-count-ko  { color: var(--text-tertiary); font-style: italic; }
+  .cctp-extraits { display: flex; flex-direction: column; gap: 8px; }
+  .cctp-extrait {
+    background: var(--bg);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--green);
+    padding: 9px 13px;
+  }
+  .cctp-extrait-meta {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .cctp-kw-chip {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--green-light);
+    color: var(--green-text);
+    font-weight: 600;
+  }
+  .cctp-page-chip {
+    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--text-tertiary);
+  }
+  .cctp-extrait-text {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  .cctp-extrait-text mark {
+    background: #FFF3B0;
+    color: #5D4A00;
+    font-style: normal;
+    border-radius: 2px;
+    padding: 0 2px;
+    font-weight: 600;
+  }
+  @media (prefers-color-scheme: dark) {
+    .cctp-extrait-text mark { background: #4A3C00; color: #FFE57A; }
+  }
+  .cctp-loading {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    padding: 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .cctp-loading i { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cctp-error-inline {
+    font-size: 12px;
+    color: var(--red-text);
+    background: var(--red-light);
+    border-radius: var(--radius-md);
+    padding: 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
 </style>
 </head>
 <body>
@@ -307,10 +431,28 @@
 
     <div class="card" id="main-card" style="display:none;">
       <div class="card-head" id="card-head"></div>
+
       <div class="global-note">
         <div class="gl-label"><i class="ti ti-note" style="font-size:13px;"></i> Note globale sur ce marché</div>
         <textarea id="g-notes" placeholder="Observations générales, lien CCTP, contexte…"></textarea>
       </div>
+
+      <!-- ── Zone analyse CCTP ── -->
+      <div class="cctp-zone">
+        <div class="cctp-bar">
+          <span class="cctp-zone-label">
+            <i class="ti ti-file-description" style="font-size:14px;color:var(--green);"></i>
+            Analyse CCTP
+          </span>
+          <label class="btn-cctp" for="cctp-input-el">
+            <i class="ti ti-upload" style="font-size:12px;"></i>
+            Charger PDF(s)
+          </label>
+          <input type="file" id="cctp-input-el" accept=".pdf" multiple style="display:none" onchange="handleCCTPUpload(this)">
+        </div>
+        <div id="cctp-results" class="cctp-results-wrap"></div>
+      </div>
+
       <div class="lots-list" id="lots-list"></div>
       <div class="card-foot">
         <button class="btn-hors-cible" onclick="horsCible()">
@@ -341,8 +483,22 @@
 </div>
 
 <script>
+// ── Config Supabase ──
 const SUPABASE_URL = 'https://ugvnkzesnmtfbjmpypzp.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVndm5remVzbm10ZmJqbXB5cHpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NDcwNTAsImV4cCI6MjA5NDMyMzA1MH0.O9sXbKXEyWGV_-3851zJMuMEFKchC01OB5PoOlCmD9I';
+
+// ── Config PDF.js ──
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── Mots-clés recherchés dans les CCTP ──
+const KEYWORDS = [
+  { label: 'réemploi',                  regex: /r[eé]emploi/gi },
+  { label: 'économie circulaire',       regex: /[eé]conomie\s+circulaire/gi },
+  { label: 'diagnostic PEMD',           regex: /diagnostic\s+PEMD/gi },
+  { label: 'déconstruction sélective',  regex: /d[eé]construction\s+s[eé]lective/gi },
+  { label: 'déconstruction soignée',    regex: /d[eé]construction\s+soign[eé]e/gi },
+];
 
 const TYPE_OPTIONS = ['Réemploi in situ','Réemploi ex situ','PEMD obligatoire','Déconstruction sélective','Diagnostic ressources'];
 const MOIS     = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
@@ -350,7 +506,7 @@ const MOIS_L   = ['janvier','février','mars','avril','mai','juin','juillet','ao
 const JOURS    = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
 
 // ── État ──
-let dateGroups  = [];   // [{ date, marches[], todo, nbReemploi }]
+let dateGroups  = [];
 let statsTotal  = 0;
 let statsDone   = 0;
 
@@ -368,14 +524,12 @@ let lotTypes    = {};
 
 async function loadAll() {
   try {
-    // Nombre total de marchés distincts
     const rTotal = await fetch(
       `${SUPABASE_URL}/rest/v1/marches?select=marche_id`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
     );
     statsTotal = parseInt(rTotal.headers.get('Content-Range')?.split('/')[1] || '0');
 
-    // Tous les lots a_verifier
     const rTodo = await fetch(
       `${SUPABASE_URL}/rest/v1/v_lots_complets?statut_lot=eq.a_verifier&select=*&order=date_publication.desc,clause_reemploi.desc,score_reemploi.desc&limit=1000`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
@@ -384,7 +538,6 @@ async function loadAll() {
 
     document.getElementById('home-loading').style.display = 'none';
 
-    // Grouper lots → marchés
     const marcheMap = new Map();
     rows.forEach(r => {
       if (!marcheMap.has(r.marche_id)) marcheMap.set(r.marche_id, { ...r, lots: [] });
@@ -394,7 +547,6 @@ async function loadAll() {
     const todoCount  = allMarches.length;
     statsDone        = statsTotal - todoCount;
 
-    // Stats
     document.getElementById('s-total').textContent = statsTotal.toLocaleString('fr-FR');
     document.getElementById('s-todo').textContent  = todoCount.toLocaleString('fr-FR');
     document.getElementById('s-done').textContent  = statsDone.toLocaleString('fr-FR');
@@ -409,7 +561,6 @@ async function loadAll() {
       document.getElementById('gp-fill').style.width   = pct + '%';
     }
 
-    // Grouper par date
     const byDate = new Map();
     allMarches.forEach(m => {
       const d = (m.date_publication || '').substring(0, 10);
@@ -514,7 +665,7 @@ function openDate(dateStr) {
 function goHome() {
   document.getElementById('view-verif').style.display = 'none';
   document.getElementById('view-home').style.display  = 'block';
-  loadAll(); // refresh stats + liste
+  loadAll();
 }
 
 // ════════════════════════
@@ -539,6 +690,10 @@ function renderCard() {
   }
 
   document.getElementById('main-card').style.display = 'block';
+
+  // Réinitialise la zone CCTP pour ce nouveau marché
+  resetCCTPZone();
+
   const m = queue[0];
 
   document.getElementById('nb-reste').textContent = queue.length;
@@ -569,7 +724,6 @@ function renderCard() {
   if (fmt(m.date_limites_offres)) h += `<span class="badge br"><i class="ti ti-clock"></i>Limite : ${fmt(m.date_limites_offres)}</span>`;
   h += `</div>`;
 
-  // Liens + référence
   h += `<div class="links-row">`;
   if (m.url_annonce)
     h += `<a href="${esc(m.url_annonce)}" class="link" target="_blank" rel="noopener"><i class="ti ti-external-link"></i> Annonce BOAMP</a>`;
@@ -592,6 +746,7 @@ function renderCard() {
 
   document.getElementById('card-head').innerHTML = h;
   document.getElementById('g-notes').value = '';
+  document.getElementById('g-notes').style.height = '';
   lotToggles = {}; lotTypes = {};
   m.lots.forEach(l => { lotToggles[l.id_lot] = false; lotTypes[l.id_lot] = []; });
 
@@ -631,7 +786,7 @@ function renderCard() {
 }
 
 // ════════════════════════
-// INTERACTIONS
+// INTERACTIONS LOTS
 // ════════════════════════
 
 function toggleLot(id) {
@@ -724,6 +879,184 @@ function skip() {
   const card = document.getElementById('main-card');
   card.classList.add('out');
   setTimeout(() => { card.classList.remove('out'); renderCard(); }, 200);
+}
+
+// ════════════════════════════════
+// ANALYSE CCTP
+// ════════════════════════════════
+
+function resetCCTPZone() {
+  document.getElementById('cctp-results').innerHTML = '';
+  const input = document.getElementById('cctp-input-el');
+  if (input) input.value = '';
+}
+
+async function handleCCTPUpload(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  for (const file of files) {
+    await analyzeCCTP(file);
+  }
+  input.value = '';
+}
+
+async function analyzeCCTP(file) {
+  const marcheId   = queue[0]?.marche_id;
+  const nomFichier = file.name;
+  const resultsEl  = document.getElementById('cctp-results');
+
+  // Indicateur de chargement
+  const loadingId = 'cctp-load-' + Date.now();
+  resultsEl.insertAdjacentHTML('beforeend', `
+    <div id="${loadingId}" class="cctp-loading">
+      <i class="ti ti-loader-2"></i>
+      Analyse de <strong>${esc(nomFichier)}</strong>…
+    </div>
+  `);
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const allExtracts = [];
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page       = await pdf.getPage(pageNum);
+      const tc         = await page.getTextContent();
+      const pageText   = tc.items.map(it => it.str).join(' ');
+
+      for (const kw of KEYWORDS) {
+        const regex = new RegExp(kw.regex.source, 'gi');
+        let match;
+        const usedRanges = [];
+
+        while ((match = regex.exec(pageText)) !== null) {
+          const start = Math.max(0, match.index - 500);
+          const end   = Math.min(pageText.length, match.index + match[0].length + 500);
+
+          // Évite les doublons si deux occurrences proches du même mot-clé
+          const overlap = usedRanges.some(r => match.index >= r.s && match.index <= r.e);
+          if (!overlap) {
+            usedRanges.push({ s: start, e: end });
+            const extrait = pageText.substring(start, end).replace(/\s+/g, ' ').trim();
+            allExtracts.push({ page: pageNum, mot_cle: kw.label, extrait });
+          }
+        }
+      }
+    }
+
+    // Supprime le loader
+    document.getElementById(loadingId)?.remove();
+
+    // Sauvegarde dans Supabase
+    if (allExtracts.length > 0 && marcheId) {
+      await saveCCTPExtracts(marcheId, nomFichier, allExtracts);
+    }
+
+    // Affiche les résultats dans la zone CCTP
+    renderCCTPFile(nomFichier, allExtracts);
+
+    // Pré-remplit la note globale
+    appendToGlobalNote(nomFichier, allExtracts);
+
+  } catch (err) {
+    document.getElementById(loadingId)?.remove();
+    resultsEl.insertAdjacentHTML('beforeend', `
+      <div class="cctp-error-inline">
+        <i class="ti ti-alert-circle"></i>
+        Erreur lors de l'analyse de ${esc(nomFichier)} : ${esc(err.message)}
+      </div>
+    `);
+  }
+}
+
+async function saveCCTPExtracts(marcheId, nomFichier, extracts) {
+  const rows = extracts.map(e => ({
+    marche_id:   marcheId,
+    nom_fichier: nomFichier,
+    page:        e.page,
+    mot_cle:     e.mot_cle,
+    extrait:     e.extrait,
+  }));
+  await fetch(`${SUPABASE_URL}/rest/v1/cctp_extraits`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify(rows),
+  });
+}
+
+function renderCCTPFile(nomFichier, extracts) {
+  const resultsEl = document.getElementById('cctp-results');
+  const count     = extracts.length;
+
+  let html = `<div class="cctp-file-group">
+    <div class="cctp-file-tag">
+      <i class="ti ti-file-type-pdf" style="color:var(--red-text);font-size:13px;"></i>
+      <strong>${esc(nomFichier)}</strong> —
+      ${count > 0
+        ? `<span class="cctp-count-ok">${count} extrait${count>1?'s':''} trouvé${count>1?'s':''}</span>`
+        : `<span class="cctp-count-ko">Aucune mention des mots-clés trouvée dans ce CCTP</span>`
+      }
+    </div>`;
+
+  if (count > 0) {
+    html += `<div class="cctp-extraits">`;
+    extracts.forEach(e => {
+      html += `
+        <div class="cctp-extrait">
+          <div class="cctp-extrait-meta">
+            <span class="cctp-kw-chip">${esc(e.mot_cle)}</span>
+            <span class="cctp-page-chip">
+              <i class="ti ti-book-2" style="font-size:10px;"></i> page ${e.page}
+            </span>
+          </div>
+          <div class="cctp-extrait-text">${highlightKeywords(e.extrait)}</div>
+        </div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  resultsEl.insertAdjacentHTML('beforeend', html);
+}
+
+function highlightKeywords(rawText) {
+  let html = esc(rawText);
+  KEYWORDS.forEach(kw => {
+    const regex = new RegExp(kw.regex.source, 'gi');
+    html = html.replace(regex, match => `<mark>${match}</mark>`);
+  });
+  return html;
+}
+
+function appendToGlobalNote(nomFichier, extracts) {
+  const ta      = document.getElementById('g-notes');
+  const existing = ta.value.trim();
+
+  let addition = existing ? '\n\n' : '';
+  addition += `[CCTP – ${nomFichier}]\n`;
+
+  if (extracts.length === 0) {
+    addition += 'Aucune mention des mots-clés trouvée.';
+  } else {
+    extracts.forEach(e => {
+      const preview = e.extrait.length > 200
+        ? e.extrait.substring(0, 200) + '…'
+        : e.extrait;
+      addition += `p.${e.page} [${e.mot_cle}] : "${preview}"\n`;
+    });
+    addition = addition.trimEnd();
+  }
+
+  ta.value = existing ? existing + addition : addition;
+
+  // Redimensionne automatiquement la textarea
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 220) + 'px';
 }
 
 // ════════════════════════
