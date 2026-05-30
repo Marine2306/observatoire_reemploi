@@ -230,6 +230,13 @@
     padding: 12px 20px;
     border-bottom: 0.5px solid var(--border);
     background: var(--bg-secondary);
+    transition: background .15s, border-color .15s;
+  }
+  .cctp-zone.drag-over {
+    background: var(--green-light);
+    border-color: var(--green);
+    outline: 2px dashed var(--green);
+    outline-offset: -4px;
   }
   .cctp-bar {
     display: flex;
@@ -438,11 +445,12 @@
       </div>
 
       <!-- ── Zone analyse CCTP ── -->
-      <div class="cctp-zone">
+      <div class="cctp-zone" id="cctp-zone">
         <div class="cctp-bar">
           <span class="cctp-zone-label">
             <i class="ti ti-file-description" style="font-size:14px;color:var(--green);"></i>
             Analyse CCTP
+            <span style="font-size:10px;color:var(--text-tertiary);font-weight:400;margin-left:4px;">— glisser ou</span>
           </span>
           <label class="btn-cctp" for="cctp-input-el">
             <i class="ti ti-upload" style="font-size:12px;"></i>
@@ -890,6 +898,41 @@ function resetCCTPZone() {
   const input = document.getElementById('cctp-input-el');
   if (input) input.value = '';
 }
+
+// ── Drag & drop sur la zone CCTP ──
+(function initCCTPDragDrop() {
+  const zone = document.getElementById('cctp-zone');
+  let dragCounter = 0; // évite le flicker au survol des éléments enfants
+
+  zone.addEventListener('dragenter', e => {
+    e.preventDefault();
+    dragCounter++;
+    zone.classList.add('drag-over');
+  });
+
+  zone.addEventListener('dragleave', () => {
+    dragCounter--;
+    if (dragCounter === 0) zone.classList.remove('drag-over');
+  });
+
+  zone.addEventListener('dragover', e => {
+    e.preventDefault(); // nécessaire pour autoriser le drop
+  });
+
+  zone.addEventListener('drop', async e => {
+    e.preventDefault();
+    dragCounter = 0;
+    zone.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+    if (!files.length) {
+      showToast('Seuls les fichiers PDF sont acceptés', 'red');
+      return;
+    }
+    for (const file of files) {
+      await analyzeCCTP(file);
+    }
+  });
+})();
 
 async function handleCCTPUpload(input) {
   const files = Array.from(input.files);
