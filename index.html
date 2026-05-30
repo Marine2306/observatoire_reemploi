@@ -930,14 +930,17 @@ async function analyzeCCTP(file) {
         const usedRanges = [];
 
         while ((match = regex.exec(pageText)) !== null) {
-          const start = Math.max(0, match.index - 500);
-          const end   = Math.min(pageText.length, match.index + match[0].length + 500);
+          const start = Math.max(0, match.index - 300);
+          const end   = Math.min(pageText.length, match.index + match[0].length + 300);
 
           // Évite les doublons si deux occurrences proches du même mot-clé
           const overlap = usedRanges.some(r => match.index >= r.s && match.index <= r.e);
           if (!overlap) {
             usedRanges.push({ s: start, e: end });
-            const extrait = pageText.substring(start, end).replace(/\s+/g, ' ').trim();
+            let extrait = pageText.substring(start, end).replace(/\s+/g, ' ').trim();
+            // Coupe à la dernière phrase complète (dernier point dans la 2e moitié)
+            const lastDot = extrait.lastIndexOf('.');
+            if (lastDot > extrait.length * 0.5) extrait = extrait.substring(0, lastDot + 1);
             allExtracts.push({ page: pageNum, mot_cle: kw.label, extrait });
           }
         }
@@ -1033,6 +1036,22 @@ function highlightKeywords(rawText) {
   return html;
 }
 
+function previewAroundKeyword(extrait, maxLen = 220) {
+  for (const kw of KEYWORDS) {
+    const regex = new RegExp(kw.regex.source, 'i');
+    const match = extrait.match(regex);
+    if (match && match.index !== undefined) {
+      const kwStart = match.index;
+      const kwEnd   = kwStart + match[0].length;
+      const half    = Math.floor((maxLen - match[0].length) / 2);
+      const start   = Math.max(0, kwStart - half);
+      const end     = Math.min(extrait.length, kwEnd + half);
+      return (start > 0 ? '…' : '') + extrait.substring(start, end) + (end < extrait.length ? '…' : '');
+    }
+  }
+  return extrait.length > maxLen ? extrait.substring(0, maxLen) + '…' : extrait;
+}
+
 function appendToGlobalNote(nomFichier, extracts) {
   const ta      = document.getElementById('g-notes');
   const existing = ta.value.trim();
@@ -1044,10 +1063,7 @@ function appendToGlobalNote(nomFichier, extracts) {
     addition += 'Aucune mention des mots-clés trouvée.';
   } else {
     extracts.forEach(e => {
-      const preview = e.extrait.length > 200
-        ? e.extrait.substring(0, 200) + '…'
-        : e.extrait;
-      addition += `p.${e.page} [${e.mot_cle}] : "${preview}"\n`;
+      addition += `p.${e.page} [${e.mot_cle}] : "${previewAroundKeyword(e.extrait)}"\n`;
     });
     addition = addition.trimEnd();
   }
