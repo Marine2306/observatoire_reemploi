@@ -173,6 +173,17 @@
   .global-note textarea:focus { outline: none; border-color: var(--green); }
 
   .lots-list { padding: 10px 20px; }
+  .q-form { padding: 12px 20px 4px; }
+  .q-block { border-bottom: 0.5px solid var(--border); padding: 10px 0 12px; }
+  .q-block:last-child { border-bottom: none; }
+  .q-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+  .q-help { font-size: 11px; color: var(--text-tertiary); font-weight: 400; }
+  .q-detail { margin-top: 10px; padding: 12px 14px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 0.5px solid var(--border); display: none; }
+  .q-detail.open { display: block; }
+  .q-lot { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--text); padding: 3px 0; cursor: pointer; }
+  .df label.q-lot { display: flex; margin-bottom: 2px; font-size: 12px; color: var(--text); }
+  .df .q-lot input { width: auto; height: auto; margin-top: 2px; flex: none; }
+  .dce-box { margin-top: 8px; font-size: 11px; color: var(--text-secondary); }
   .lot-item { border-bottom: 0.5px solid var(--border); padding: 11px 0; }
   .lot-item:last-child { border-bottom: none; }
   .lot-header { display: flex; align-items: flex-start; gap: 10px; }
@@ -199,6 +210,7 @@
   .df textarea { width: 100%; font-size: 12px; padding: 6px 9px; height: 58px; resize: none; border: 0.5px solid var(--border-md); border-radius: var(--radius-md); color: var(--text); background: var(--bg); font-family: inherit; }
   .df textarea:focus { outline: none; border-color: var(--green); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 520px) { .two { grid-template-columns: 1fr; } }
 
   .checkboxes { display: flex; flex-wrap: wrap; gap: 5px; }
   .cbx { font-size: 11px; padding: 4px 10px; border-radius: 20px; border: 0.5px solid var(--border-md); cursor: pointer; color: var(--text-secondary); background: var(--bg); font-family: inherit; transition: all .1s; }
@@ -464,7 +476,7 @@
       <div class="card-head" id="card-head"></div>
 
       <div class="global-note">
-        <div class="gl-label"><i class="ti ti-note" style="font-size:13px;"></i> Note globale sur ce marché</div>
+        <div class="gl-label"><i class="ti ti-note" style="font-size:13px;"></i> Notes d'analyse (pages, extraits du CCTP…)</div>
         <textarea id="g-notes" placeholder="Observations générales, lien CCTP, contexte…"></textarea>
       </div>
 
@@ -485,7 +497,7 @@
         <div id="cctp-results" class="cctp-results-wrap"></div>
       </div>
 
-      <div class="lots-list" id="lots-list"></div>
+      <div class="q-form" id="q-form"></div>
       <div class="card-foot">
         <button class="btn-hors-cible" onclick="horsCible()">
           <i class="ti ti-x"></i> Hors cible
@@ -498,7 +510,7 @@
 
     <div class="done-screen" id="done-screen" style="display:none;">
       <div class="done-icon"><i class="ti ti-circle-check"></i></div>
-      <div class="done-title">Tous les marchés de ce jour sont vérifiés !</div>
+      <div class="done-title">Tous les marchés de ce jour sont analysés !</div>
       <div class="done-sub" id="done-sub"></div>
       <button class="btn-retour" onclick="goHome()">
         <i class="ti ti-arrow-left"></i> Retour aux dates
@@ -574,7 +586,16 @@ const KEYWORDS = [
   { label: 'déconstruction soignée',    regex: /d[eé]construction\s+soign[eé]e/gi },
 ];
 
-const TYPE_OPTIONS = ['Réemploi in situ','Réemploi ex situ','PEMD obligatoire','Déconstruction sélective','Diagnostic ressources'];
+// Valeurs du questionnaire (niveau marché)
+const FORCE_OPTIONS = [
+  { v: 'obligatoire', l: 'Obligatoire', h: 'imposé au titulaire (CCTP, CCAP)' },
+  { v: 'note',        l: 'Noté',        h: 'compte dans la notation des offres' },
+  { v: 'encourage',   l: 'Encouragé',   h: 'souhaité, sans obligation ni note' },
+  { v: 'cite',        l: 'Cité seulement', h: 'mentionné sans contenu concret' },
+];
+const TYPE_OPTIONS = ['Réemploi in situ','Réemploi ex situ','Dépose pour filière','Réparation'];
+const MATERIAUX_OPTIONS = ['Pierre / brique / tuile','Bois / charpente','Menuiseries','Sanitaires','Faux plafonds','Revêtements de sol','Équipements techniques (CVC, élec.)','Mobilier','Métal / serrurerie','Autre'];
+const QUALITE_OPTIONS = ['Complets','Partiels','Insuffisants','Introuvables'];
 const MOIS     = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
 const MOIS_L   = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const JOURS    = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
@@ -589,8 +610,7 @@ let queue       = [];
 let queueTotal  = 0;
 let queueDone   = 0;
 let currentDate = null;
-let lotToggles  = {};
-let lotTypes    = {};
+let rep = {};  // réponses du questionnaire pour le marché affiché
 
 // ════════════════════════
 // CHARGEMENT
@@ -605,19 +625,13 @@ async function loadAll() {
     statsTotal = parseInt(rTotal.headers.get('Content-Range')?.split('/')[1] || '0');
 
     const rTodo = await fetch(
-      `${SUPABASE_URL}/rest/v1/v_lots_complets?statut_lot=eq.a_verifier&select=*&order=date_publication.desc,clause_reemploi.desc,score_reemploi.desc&limit=1000`,
+      `${SUPABASE_URL}/rest/v1/v_marches_a_analyser?select=*&order=date_publication.desc,annonce_reemploi.desc,score_pertinence.desc&limit=1000`,
       { headers: { apikey: SUPABASE_KEY, Authorization: authHeader() } }
     );
-    const rows = await rTodo.json();
+    const allMarches = await rTodo.json();
+    if (!Array.isArray(allMarches)) throw new Error(allMarches?.message || 'réponse inattendue');
 
     document.getElementById('home-loading').style.display = 'none';
-
-    const marcheMap = new Map();
-    rows.forEach(r => {
-      if (!marcheMap.has(r.marche_id)) marcheMap.set(r.marche_id, { ...r, lots: [] });
-      marcheMap.get(r.marche_id).lots.push(r);
-    });
-    const allMarches = Array.from(marcheMap.values());
     const todoCount  = allMarches.length;
     statsDone        = statsTotal - todoCount;
 
@@ -625,8 +639,8 @@ async function loadAll() {
     document.getElementById('s-todo').textContent  = todoCount.toLocaleString('fr-FR');
     document.getElementById('s-done').textContent  = statsDone.toLocaleString('fr-FR');
     document.getElementById('header-sub').textContent = todoCount > 0
-      ? `${todoCount} marché${todoCount > 1 ? 's' : ''} en attente de vérification`
-      : 'Tous les marchés sont vérifiés';
+      ? `${todoCount} marché${todoCount > 1 ? 's' : ''} en attente d'analyse`
+      : 'Tous les marchés sont analysés';
 
     if (statsTotal > 0) {
       const pct = Math.round(statsDone / statsTotal * 100);
@@ -648,7 +662,7 @@ async function loadAll() {
         date,
         marches,
         todo: marches.length,
-        nbReemploi: marches.filter(m => m.clause_reemploi).length
+        nbReemploi: marches.filter(m => m.annonce_reemploi).length
       }));
 
     renderDateList();
@@ -700,7 +714,7 @@ function renderDateList() {
       </div>
       <div class="date-badges">
         <span class="chip chip-todo">
-          <i class="ti ti-clock" style="font-size:11px;"></i> ${g.todo} à vérifier
+          <i class="ti ti-clock" style="font-size:11px;"></i> ${g.todo} à analyser
         </span>
         ${g.nbReemploi > 0 ? `<span class="chip chip-reemploi"><i class="ti ti-recycle" style="font-size:11px;"></i> ${g.nbReemploi}</span>` : ''}
       </div>
@@ -726,7 +740,7 @@ function openDate(dateStr) {
   document.getElementById('v-month').textContent = MOIS[d.getMonth()].toUpperCase();
   document.getElementById('v-day').textContent   = d.getDate();
   document.getElementById('v-label').textContent = fmtLong(dateStr);
-  document.getElementById('v-meta').textContent  = `${queueTotal} marché${queueTotal>1?'s':''} à vérifier`;
+  document.getElementById('v-meta').textContent  = `${queueTotal} marché${queueTotal>1?'s':''} à analyser`;
 
   document.getElementById('view-home').style.display  = 'none';
   document.getElementById('view-verif').style.display = 'block';
@@ -773,15 +787,15 @@ function renderCard() {
   document.getElementById('nb-reste').textContent = queue.length;
   document.getElementById('prog').style.width = Math.round(queueDone / queueTotal * 100) + '%';
 
-  const sc   = m.score_reemploi || 0;
-  const scC  = scoreColor(sc);
-  const scPct = Math.min(Math.round(sc / 5 * 100), 100);
+  const sc   = m.score_pertinence || 0;
+  const scC  = scoreColor(Math.round(sc / 20));
+  const scPct = Math.min(sc, 100);
 
-  let h = `<div class="card-titre">${esc(m.titre_marche || 'Marché sans titre')}</div>`;
+  let h = `<div class="card-titre">${esc(m.titre || 'Marché sans titre')}</div>`;
 
   h += `<div class="meta-row">`;
   if (m.acheteur_nom)         h += `<span class="badge bb"><i class="ti ti-building"></i>${esc(m.acheteur_nom)}</span>`;
-  if (m.acheteur_departement) h += `<span class="badge bg">${esc(m.acheteur_departement)}${m.acheteur_region?' · '+esc(m.acheteur_region):''}</span>`;
+  if (m.acheteur_departement) h += `<span class="badge bg">${esc(m.acheteur_departement)}${m.acheteur_ville?' · '+esc(m.acheteur_ville):''}</span>`;
   if (fmt(m.date_publication)) h += `<span class="badge bg"><i class="ti ti-calendar"></i>${fmt(m.date_publication)}</span>`;
   h += `</div>`;
 
@@ -791,148 +805,219 @@ function renderCard() {
   h += `</div>`;
 
   h += `<div class="meta-row">`;
-  if (m.critere_environnemental) h += `<span class="badge bv"><i class="ti ti-leaf"></i>Critère env.</span>`;
+  if (m.annonce_critere_env) h += `<span class="badge bv"><i class="ti ti-leaf"></i>Critère env.</span>`;
   if (m.clause_sociale)          h += `<span class="badge bg">Clause sociale</span>`;
   if (m.clause_insertion)        h += `<span class="badge bg">Clause insertion</span>`;
-  if (m.diag_pemd_mentionne)     h += `<span class="badge bo"><i class="ti ti-clipboard-list"></i>Diag PEMD</span>`;
+  if (m.annonce_pemd)            h += `<span class="badge bo"><i class="ti ti-clipboard-list"></i>PEMD cité</span>`;
   if (fmt(m.date_limites_offres)) h += `<span class="badge br"><i class="ti ti-clock"></i>Limite : ${fmt(m.date_limites_offres)}</span>`;
   h += `</div>`;
 
   h += `<div class="links-row">`;
   if (m.url_annonce)
     h += `<a href="${esc(m.url_annonce)}" class="link" target="_blank" rel="noopener"><i class="ti ti-external-link"></i> Annonce BOAMP</a>`;
-  if (m.url_profil_acheteur)
+  if (m.url_documents_marche)
+    h += `<a href="${esc(m.url_documents_marche)}" class="link" target="_blank" rel="noopener"><i class="ti ti-folder-open"></i> Documents (DCE)</a>`;
+  else if (m.url_profil_acheteur)
     h += `<a href="${esc(m.url_profil_acheteur)}" class="link" target="_blank" rel="noopener"><i class="ti ti-folder-open"></i> Profil acheteur (DCE)</a>`;
   if (m.reference_consultation)
     h += `<span class="link-ref"><i class="ti ti-hash"></i>${esc(m.reference_consultation)}</span>`;
   h += `</div>`;
 
   h += `<div class="score-wrap">
-    <span class="score-label">Score réemploi détecté</span>
+    <span class="score-label">Pertinence</span>
     <div class="score-bar"><div class="score-fill" style="width:${scPct}%;background:${scC.fill};"></div></div>
-    <span class="score-val" style="color:${scC.text};">${sc}/5</span>
+    <span class="score-val" style="color:${scC.text};">${sc}/100</span>
   </div>`;
 
-  if (m.texte_extrait_reemploi) {
-    const txt = m.texte_extrait_reemploi.substring(0, 220);
-    h += `<div class="extrait"><i class="ti ti-quote" style="font-size:12px;margin-right:4px;"></i>${esc(txt)}${m.texte_extrait_reemploi.length>220?'…':''}</div>`;
+  // Ce que dit l'annonce
+  if (m.annonce_reemploi) {
+    h += `<div class="extrait"><strong style="font-style:normal;">L'annonce parle de réemploi</strong>${m.annonce_mots_trouves?.length ? ' ('+esc(m.annonce_mots_trouves.join(', '))+')' : ''}${m.annonce_extrait ? ' : « '+esc(m.annonce_extrait)+' »' : ''}</div>`;
+  } else if (m.annonce_mots_trouves?.length) {
+    h += `<div class="extrait">L'annonce ne parle pas de réemploi (signaux faibles : ${esc(m.annonce_mots_trouves.join(', '))})</div>`;
+  } else {
+    h += `<div class="extrait">L'annonce ne parle pas de réemploi.</div>`;
+  }
+
+  // Ce qu'a trouvé la lecture automatique du DCE
+  if (m.dce_reemploi !== null && m.dce_reemploi !== undefined || m.dce_mots_trouves?.length) {
+    const ex = Array.isArray(m.dce_extraits) ? m.dce_extraits.slice(0, 3) : [];
+    h += `<div class="dce-box"><i class="ti ti-file-search"></i> DCE lu automatiquement : ${m.dce_reemploi ? 'parle de réemploi' : 'ne parle pas de réemploi'}${m.dce_mots_trouves?.length ? ' ('+esc(m.dce_mots_trouves.join(', '))+')' : ''}</div>`;
+    ex.forEach(e => {
+      const t = typeof e === 'string' ? e : (e.extrait || e.texte || JSON.stringify(e));
+      const where = typeof e === 'object' && e ? [e.fichier || e.nom_fichier, e.page ? 'p.'+e.page : ''].filter(Boolean).join(' ') : '';
+      h += `<div class="extrait">${where ? '<strong style="font-style:normal;">'+esc(where)+'</strong> ' : ''}${esc(String(t).substring(0, 300))}</div>`;
+    });
   }
 
   document.getElementById('card-head').innerHTML = h;
   document.getElementById('g-notes').value = '';
   document.getElementById('g-notes').style.height = '';
-  lotToggles = {}; lotTypes = {};
-  m.lots.forEach(l => { lotToggles[l.id_lot] = false; lotTypes[l.id_lot] = []; });
-
-  document.getElementById('lots-list').innerHTML = m.lots.map(l => `
-    <div class="lot-item" id="li-${l.id_lot}">
-      <div class="lot-header">
-        <div class="lot-n">L${l.numero_lot||1}</div>
-        <div class="lot-info">
-          <div class="lot-titre">${esc(l.titre_lot||'Lot sans titre')}</div>
-          ${l.libelle_cpv?`<div class="lot-cpv">${esc(l.libelle_cpv)}</div>`:''}
-        </div>
-        <div class="reemploi-toggle">
-          <span class="r-label">Réemploi</span>
-          <div class="toggle-wrap" onclick="toggleLot('${l.id_lot}')">
-            <div class="toggle-track" id="track-${l.id_lot}"></div>
-            <div class="toggle-thumb" id="thumb-${l.id_lot}"></div>
-          </div>
-        </div>
-      </div>
-      <div class="lot-detail" id="det-${l.id_lot}">
-        <div class="df">
-          <label>Types de clause (choix multiples)</label>
-          <div class="checkboxes" id="cbx-${l.id_lot}">
-            ${TYPE_OPTIONS.map(t=>`<button class="cbx" onclick="toggleType('${l.id_lot}','${t}')">${t}</button>`).join('')}
-          </div>
-        </div>
-        <div class="two">
-          <div class="df"><label>Matériaux visés</label><input type="text" id="mat-${l.id_lot}" placeholder="tuiles, parquet, acier…"/></div>
-          <div class="df"><label>Objectif (%)</label><input type="text" id="obj-${l.id_lot}" placeholder="Ex : 20"/></div>
-        </div>
-        <div class="df">
-          <label>Notes (page CCTP, extrait…)</label>
-          <textarea id="note-${l.id_lot}" placeholder="Ex : p.34 — le CCTP mentionne 20% de matériaux réemployés"></textarea>
-        </div>
-      </div>
-    </div>`).join('');
+  rep = { reemploi: null, force: null, types: [], materiaux: [], lots: [],
+          pemd: null, pemdJoint: null, critere: null, qualite: null };
+  renderQuestionnaire();
 }
 
 // ════════════════════════
-// INTERACTIONS LOTS
+// QUESTIONNAIRE (niveau marché)
 // ════════════════════════
 
-function toggleLot(id) {
-  lotToggles[id] = !lotToggles[id];
-  const on = lotToggles[id];
-  document.getElementById('track-'+id).className = 'toggle-track'+(on?' on':'');
-  document.getElementById('thumb-'+id).className = 'toggle-thumb'+(on?' on':'');
-  document.getElementById('det-'+id).classList.toggle('open', on);
+function choix(champ, valeur, label, multi) {
+  const on = multi ? rep[champ].includes(valeur) : rep[champ] === valeur;
+  return `<button type="button" class="cbx${on ? ' on' : ''}" onclick="choisir('${champ}', ${JSON.stringify(valeur).replace(/"/g, '&quot;')}, ${multi ? 'true' : 'false'})">${esc(label)}</button>`;
 }
 
-function toggleType(lotId, type) {
-  const arr = lotTypes[lotId]||[];
-  const i = arr.indexOf(type);
-  if (i>=0) arr.splice(i,1); else arr.push(type);
-  lotTypes[lotId] = arr;
-  document.querySelectorAll(`#cbx-${lotId} .cbx`).forEach(b => {
-    b.classList.toggle('on', arr.includes(b.textContent.trim()));
+function choisir(champ, valeur, multi) {
+  lireChampsLibres();
+  if (multi) {
+    const arr = rep[champ];
+    const i = arr.indexOf(valeur);
+    if (i >= 0) arr.splice(i, 1); else arr.push(valeur);
+  } else {
+    rep[champ] = rep[champ] === valeur ? null : valeur;
+  }
+  renderQuestionnaire();
+}
+
+function choisirLot(n, coche) {
+  lireChampsLibres();
+  rep.lots = coche ? [...new Set([...rep.lots, n])].sort((a, b) => a - b) : rep.lots.filter(x => x !== n);
+}
+
+// Garde les saisies libres quand on re-dessine le formulaire
+function lireChampsLibres() {
+  ['objectif', 'pemdPar', 'ponderation', 'surface'].forEach(k => {
+    const el = document.getElementById('q-' + k);
+    if (el) rep[k] = el.value;
   });
 }
 
+function renderQuestionnaire() {
+  const m = queue[0];
+  const lots = (m.lots || []).filter(l => l);
+  const oui = rep.reemploi === true;
+  const ouiNon = (champ) => choix(champ, true, 'Oui') + choix(champ, false, 'Non');
+
+  let h = `<div class="q-block">
+    <div class="q-title"><i class="ti ti-recycle"></i> Le marché demande-t-il du réemploi ?</div>
+    <div class="checkboxes">${ouiNon('reemploi')}</div>
+    <div class="q-detail${oui ? ' open' : ''}">
+      <div class="df"><label>Force de la clause</label>
+        <div class="checkboxes">${FORCE_OPTIONS.map(f => choix('force', f.v, f.l)).join('')}</div>
+        <div class="q-help" style="margin-top:4px;">${esc(FORCE_OPTIONS.find(f => f.v === rep.force)?.h || '')}</div>
+      </div>
+      <div class="df"><label>Type de réemploi (plusieurs choix)</label>
+        <div class="checkboxes">${TYPE_OPTIONS.map(t => choix('types', t, t, true)).join('')}</div>
+      </div>
+      <div class="df"><label>Matériaux visés (plusieurs choix)</label>
+        <div class="checkboxes">${MATERIAUX_OPTIONS.map(t => choix('materiaux', t, t, true)).join('')}</div>
+      </div>
+      <div class="two">
+        <div class="df"><label>Objectif chiffré (%)</label><input type="text" inputmode="decimal" id="q-objectif" value="${esc(rep.objectif || '')}" placeholder="Ex : 20"/></div>
+        <div class="df"></div>
+      </div>
+      ${lots.length > 1 ? `<div class="df"><label>Lots concernés</label>
+        ${lots.map(l => `<label class="q-lot"><input type="checkbox" ${rep.lots.includes(l.numero_lot) ? 'checked' : ''} onchange="choisirLot(${Number(l.numero_lot)}, this.checked)"> <span><strong>L${esc(l.numero_lot)}</strong> ${esc(l.titre_lot || '')}</span></label>`).join('')}
+      </div>` : ''}
+    </div>
+  </div>
+
+  <div class="q-block">
+    <div class="q-title"><i class="ti ti-clipboard-list"></i> Diagnostic PEMD</div>
+    <div class="two">
+      <div class="df"><label>Réalisé ?</label><div class="checkboxes">${ouiNon('pemd')}</div></div>
+      <div class="df"><label>Joint au DCE ?</label><div class="checkboxes">${ouiNon('pemdJoint')}</div></div>
+    </div>
+    <div class="df"><label>Réalisé par</label><input type="text" id="q-pemdPar" value="${esc(rep.pemdPar || '')}" placeholder="Bureau d'études"/></div>
+  </div>
+
+  <div class="q-block">
+    <div class="q-title"><i class="ti ti-scale"></i> Notation et contexte</div>
+    <div class="two">
+      <div class="df"><label>Critère de notation sur le réemploi ?</label><div class="checkboxes">${ouiNon('critere')}</div></div>
+      <div class="df"><label>Pondération environnementale (%)</label><input type="text" inputmode="decimal" id="q-ponderation" value="${esc(rep.ponderation || '')}" placeholder="Ex : 10"/></div>
+    </div>
+    <div class="two">
+      <div class="df"><label>Surface de plancher (m²)</label><input type="text" inputmode="decimal" id="q-surface" value="${esc(rep.surface || '')}"/></div>
+      <div class="df"><label>Documents du marché</label><div class="checkboxes">${QUALITE_OPTIONS.map(q => choix('qualite', q, q)).join('')}</div></div>
+    </div>
+  </div>`;
+
+  document.getElementById('q-form').innerHTML = h;
+}
+
+// ════════════════════════
+// ENREGISTREMENT
+// ════════════════════════
+
+const nombre = (v) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isNaN(n) ? null : n; };
+
 async function valider() {
   const m = queue[0];
-  const gNotes = document.getElementById('g-notes').value.trim();
-  const today  = new Date().toISOString().split('T')[0];
+  lireChampsLibres();
+  if (rep.reemploi === null) { showToast('Indique si le marché demande du réemploi', 'red'); return; }
   const btn    = document.querySelector('.btn-valider');
   btn.disabled = true;
   btn.innerHTML = '<i class="ti ti-loader-2"></i> Enregistrement…';
 
-  await Promise.all(m.lots.map(l => {
-    const hasReemploi = lotToggles[l.id_lot];
-    const payload = { statut_lot: 'verifie', verifie_cctp: hasReemploi, verifie_le: today };
-    if (hasReemploi) {
-      const types = lotTypes[l.id_lot];
-      if (types?.length) payload.type_reemploi = types.join(', ');
-      const mat  = document.getElementById('mat-'+l.id_lot)?.value.trim();
-      const obj  = document.getElementById('obj-'+l.id_lot)?.value.trim();
-      const note = document.getElementById('note-'+l.id_lot)?.value.trim();
-      if (mat) payload.materiaux_vises = mat;
-      if (obj) payload.objectif_reemploi = parseFloat(obj)||null;
-      const nf = [note,gNotes].filter(Boolean).join(' | ');
-      if (nf) payload.notes_verification = nf;
-    } else { if (gNotes) payload.notes_verification = gNotes; }
-    return patchLot(l.id_lot, payload);
-  }));
+  const oui = rep.reemploi === true;
+  const lots = (m.lots || []).filter(l => l);
+  const payload = {
+    verdict_reemploi: rep.reemploi,
+    verdict_force_clause: oui ? rep.force : null,
+    verdict_types: oui && rep.types.length ? rep.types : null,
+    verdict_materiaux: oui && rep.materiaux.length ? rep.materiaux : null,
+    verdict_objectif_pct: oui ? nombre(rep.objectif) : null,
+    verdict_lots: !oui ? null : (lots.length === 1 ? [lots[0].numero_lot] : (rep.lots.length ? rep.lots : null)),
+    pemd_realise: rep.pemd,
+    pemd_realise_par: (rep.pemdPar || '').trim() || null,
+    pemd_joint_dce: rep.pemdJoint,
+    critere_notation_reemploi: rep.critere,
+    ponderation_env_pct: nombre(rep.ponderation),
+    surface_plancher_m2: nombre(rep.surface),
+    qualite_documents: rep.qualite,
+    analyse_notes: document.getElementById('g-notes').value.trim() || null,
+    analyse_le: new Date().toISOString(),
+  };
 
-  showToast('Enregistré', 'green');
-  btn.disabled = false;
-  btn.innerHTML = '<i class="ti ti-check"></i> Valider et passer au suivant';
-  advance();
+  try {
+    await patch(`marches?marche_id=eq.${m.marche_id}`, payload);
+    await patch(`lots?marche_id=eq.${m.marche_id}&statut_lot=eq.a_verifier`,
+      { statut_lot: 'verifie', verifie_le: new Date().toISOString().split('T')[0] });
+    showToast('Enregistré', 'green');
+    advance();
+  } catch (e) {
+    showToast('Erreur : ' + e.message, 'red');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-check"></i> Valider et passer au suivant';
+  }
 }
 
 async function horsCible() {
   const m   = queue[0];
-  const today = new Date().toISOString().split('T')[0];
   const btn = document.querySelector('.btn-hors-cible');
   btn.disabled = true;
   btn.innerHTML = '<i class="ti ti-loader-2"></i>';
-
-  await Promise.all(m.lots.map(l => patchLot(l.id_lot, { statut_lot: 'hors_cible', verifie_le: today })));
-
-  showToast('Marqué hors cible', 'red');
-  btn.disabled = false;
-  btn.innerHTML = '<i class="ti ti-x"></i> Hors cible';
-  advance();
+  try {
+    await patch(`lots?marche_id=eq.${m.marche_id}&statut_lot=eq.a_verifier`,
+      { statut_lot: 'hors_cible', verifie_le: new Date().toISOString().split('T')[0] });
+    showToast('Marqué hors cible', 'red');
+    advance();
+  } catch (e) {
+    showToast('Erreur : ' + e.message, 'red');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-x"></i> Hors cible';
+  }
 }
 
-function patchLot(id, payload) {
-  return fetch(`${SUPABASE_URL}/rest/v1/lots?id_lot=eq.${id}`, {
+async function patch(chemin, payload) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${chemin}`, {
     method: 'PATCH',
     headers: { apikey: SUPABASE_KEY, Authorization: authHeader(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(payload)
   });
+  if (!r.ok) throw new Error((await r.text()).substring(0, 200) || r.status);
 }
 
 function advance() {
