@@ -6,6 +6,7 @@
 <title>Observatoire Réemploi</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
   :root {
     --bg: #ffffff;
@@ -131,6 +132,13 @@
   .skip-btn:hover { background: var(--bg-secondary); color: var(--text-secondary); }
 
   /* ── Card ── */
+  .btn-logout { margin-left: auto; font-size: 12px; padding: 6px 10px; border-radius: var(--radius-md); border: 0.5px solid var(--border-md); background: transparent; cursor: pointer; font-family: inherit; color: inherit; }
+  .login-card { background: var(--bg); border: 0.5px solid var(--border-md); border-radius: var(--radius-lg); padding: 20px; max-width: 420px; }
+  .login-title { font-weight: 600; margin-bottom: 6px; }
+  .login-sub { font-size: 13px; opacity: .75; margin: 6px 0; }
+  .login-card form { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .login-card input { flex: 1; min-width: 180px; padding: 9px 10px; border-radius: var(--radius-md); border: 0.5px solid var(--border-md); font-family: inherit; font-size: 13px; }
+  .login-card button { padding: 9px 14px; border-radius: var(--radius-md); border: 1.5px solid var(--green); color: var(--green-dark); background: transparent; cursor: pointer; font-family: inherit; font-weight: 600; font-size: 13px; }
   .card { background: var(--bg); border: 0.5px solid var(--border-md); border-radius: var(--radius-lg); overflow: hidden; transition: opacity .18s, transform .18s; }
   .card.out { opacity: 0; transform: translateX(28px); }
 
@@ -363,9 +371,25 @@
       <h1>Observatoire Réemploi</h1>
       <p id="header-sub">Chargement…</p>
     </div>
+    <button id="btn-logout" class="btn-logout" style="display:none" onclick="seDeconnecter()"><i class="ti ti-logout"></i> Déconnexion</button>
   </div>
 
   <div id="error-zone"></div>
+
+  <!-- ══════════════════════
+       CONNEXION
+  ══════════════════════ -->
+  <div id="view-login" style="display:none">
+    <div class="login-card">
+      <p class="login-title"><i class="ti ti-lock"></i> Connexion</p>
+      <p class="login-sub">Entre ton adresse e-mail : tu recevras un lien de connexion.</p>
+      <form onsubmit="envoyerLien(event)">
+        <input id="login-email" type="email" required placeholder="prenom@exemple.fr" autocomplete="email">
+        <button type="submit" id="btn-login">Recevoir le lien</button>
+      </form>
+      <p id="login-msg" class="login-sub"></p>
+    </div>
+  </div>
 
   <!-- ══════════════════════
        VUE 1 — ACCUEIL
@@ -495,6 +519,48 @@
 const SUPABASE_URL = 'https://ugvnkzesnmtfbjmpypzp.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVndm5remVzbm10ZmJqbXB5cHpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NDcwNTAsImV4cCI6MjA5NDMyMzA1MH0.O9sXbKXEyWGV_-3851zJMuMEFKchC01OB5PoOlCmD9I';
 
+// ── Connexion : les écritures sont réservées aux comptes connectés ──
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let accessToken = null;
+const authHeader = () => `Bearer ${accessToken || SUPABASE_KEY}`;
+
+sb.auth.onAuthStateChange((_event, session) => {
+  accessToken = session?.access_token || null;
+});
+
+async function demarrer() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    document.getElementById('view-home').style.display = 'none';
+    document.getElementById('view-login').style.display = 'block';
+    document.getElementById('header-sub').textContent = 'Connecte-toi pour vérifier les marchés';
+    return;
+  }
+  accessToken = session.access_token;
+  document.getElementById('btn-logout').style.display = 'inline-flex';
+  loadAll();
+}
+
+async function envoyerLien(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const msg = document.getElementById('login-msg');
+  document.getElementById('btn-login').disabled = true;
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname }
+  });
+  document.getElementById('btn-login').disabled = false;
+  msg.textContent = error
+    ? 'Envoi impossible : ' + error.message
+    : 'Lien envoyé. Ouvre-le depuis ta boîte mail pour te connecter.';
+}
+
+async function seDeconnecter() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
 // ── Config PDF.js ──
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -534,13 +600,13 @@ async function loadAll() {
   try {
     const rTotal = await fetch(
       `${SUPABASE_URL}/rest/v1/marches?select=marche_id`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'count=exact', Range: '0-0' } }
+      { headers: { apikey: SUPABASE_KEY, Authorization: authHeader(), Prefer: 'count=exact', Range: '0-0' } }
     );
     statsTotal = parseInt(rTotal.headers.get('Content-Range')?.split('/')[1] || '0');
 
     const rTodo = await fetch(
       `${SUPABASE_URL}/rest/v1/v_lots_complets?statut_lot=eq.a_verifier&select=*&order=date_publication.desc,clause_reemploi.desc,score_reemploi.desc&limit=1000`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+      { headers: { apikey: SUPABASE_KEY, Authorization: authHeader() } }
     );
     const rows = await rTodo.json();
 
@@ -864,7 +930,7 @@ async function horsCible() {
 function patchLot(id, payload) {
   return fetch(`${SUPABASE_URL}/rest/v1/lots?id_lot=eq.${id}`, {
     method: 'PATCH',
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    headers: { apikey: SUPABASE_KEY, Authorization: authHeader(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(payload)
   });
 }
@@ -1027,7 +1093,7 @@ async function saveCCTPExtracts(marcheId, nomFichier, extracts) {
     method: 'POST',
     headers: {
       apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Authorization: authHeader(),
       'Content-Type': 'application/json',
       Prefer: 'return=minimal',
     },
@@ -1143,7 +1209,7 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-loadAll();
+demarrer();
 </script>
 </body>
 </html>
