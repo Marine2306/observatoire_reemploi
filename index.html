@@ -540,8 +540,13 @@ sb.auth.onAuthStateChange((_event, session) => {
   accessToken = session?.access_token || null;
 });
 
+// Connexion désactivée pour le moment : passer à true pour la rétablir
+// (et remettre les droits d'écriture Supabase au seul rôle authenticated).
+const CONNEXION_OBLIGATOIRE = false;
+
 async function demarrer() {
   const { data: { session } } = await sb.auth.getSession();
+  if (!session && !CONNEXION_OBLIGATOIRE) { loadAll(); return; }
   if (!session) {
     document.getElementById('view-home').style.display = 'none';
     document.getElementById('view-login').style.display = 'block';
