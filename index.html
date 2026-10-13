@@ -184,6 +184,8 @@
   .df label.q-lot { display: flex; margin-bottom: 2px; font-size: 12px; color: var(--text); }
   .df .q-lot input { width: auto; height: auto; margin-top: 2px; flex: none; }
   .dce-box { margin-top: 8px; font-size: 11px; color: var(--text-secondary); }
+  .mat-picked { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .mat-picked .cbx i { margin-left: 4px; font-size: 11px; }
   .lot-item { border-bottom: 0.5px solid var(--border); padding: 11px 0; }
   .lot-item:last-child { border-bottom: none; }
   .lot-header { display: flex; align-items: flex-start; gap: 10px; }
@@ -476,8 +478,8 @@
       <div class="card-head" id="card-head"></div>
 
       <div class="global-note">
-        <div class="gl-label"><i class="ti ti-note" style="font-size:13px;"></i> Notes d'analyse (pages, extraits du CCTP…)</div>
-        <textarea id="g-notes" placeholder="Observations générales, lien CCTP, contexte…"></textarea>
+        <div class="gl-label"><i class="ti ti-note" style="font-size:13px;"></i> Commentaire général</div>
+        <textarea id="g-notes" placeholder="Observations générales, contexte, pages du CCTP…"></textarea>
       </div>
 
       <!-- ── Zone analyse CCTP ── -->
@@ -599,7 +601,29 @@ const FORCE_OPTIONS = [
   { v: 'cite',        l: 'Cité seulement', h: 'mentionné sans contenu concret' },
 ];
 const TYPE_OPTIONS = ['Réemploi in situ','Réemploi ex situ','Dépose pour filière','Réparation'];
-const MATERIAUX_OPTIONS = ['Pierre / brique / tuile','Bois / charpente','Menuiseries','Sanitaires','Faux plafonds','Revêtements de sol','Équipements techniques (CVC, élec.)','Mobilier','Métal / serrurerie','Autre'];
+// Liste « Base Matériaux » (NocoDB, export du 12/10/2026)
+const MATERIAUX_OPTIONS = [
+  'Accessoire menuiserie (poignée, butée de porte..)', 'Allège béton', 'Arbre et arbustes', 'Arceaux vélo',
+  'Ardoise', 'BAES / BAEH', 'Bac acier', 'Baie de brassage',
+  'Baignoire', 'Bardage bois', 'Bardage métallique', 'Boite aux lettres',
+  'Brique terre crue', 'Brique terre cuite', 'Caillebottis', "Candélabre / Mat d'éclairage",
+  'Charpente BLC', 'Charpente bois', 'Charpente métallique', 'Chauffe-eau',
+  'Chemin de câble', 'Cloison pleine', 'Cloison vitrée', 'Clôture métallique',
+  'Construction modulaire', 'Cuve de récupération', 'Câble électrique', 'Dalle gravillonnée',
+  'Dévidoir à papier', 'EPDM', 'Elément patrimoniaux, antiquités architecturales', 'Equipement GBT',
+  'Evier inox', 'Extincteur', 'Faux plafond laine de roche', 'Faux plafond laine de verre',
+  'Faux plafond minéral', 'Faux plafond métallique', 'Faux plafond plâtre', 'Gaine CVC',
+  'Garde-corps bois', 'Garde-corps métallique', 'Garde-corps vitré', 'Goulotte',
+  'Granulat de toiture-terrasse', 'Interrupteur', 'Isolant Laine de roche', 'Isolant Laine de verre',
+  'Lauze', 'Lavabo, lave-main', 'Luminaire BD LED', 'Luminaire SPOT',
+  'Luminaire hublot', 'Luminaire réglette LED', 'Menuiserie vitrée', 'Miroir',
+  'Mitigeur/robinet', 'Moellon de pierre', 'Ossature faux plafond', 'Panneau HPL',
+  'Panneau bois (OSB, contreplaqué...)', 'Pavé autobloquant', 'Pavé pierre (granit, grès)', 'Pierre de taille',
+  'Plancher technique', 'Porte de communication', 'Porte palière', 'Prise électrique',
+  'Radiateur en acier', 'Radiateur en fonte', 'Radiateur électrique', 'Revêtement de sol bois',
+  'Sèche main', 'Tuile terre cuite', 'Urinoir', 'Ventilo-convecteur',
+  'Volet Bois', 'Volet PVC', 'Volet métallique', 'WC',
+];
 const QUALITE_OPTIONS = ['Complets','Partiels','Insuffisants','Introuvables'];
 const MOIS     = ['jan','fév','mar','avr','mai','juin','juil','août','sep','oct','nov','déc'];
 const MOIS_L   = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
@@ -883,6 +907,16 @@ function choisir(champ, valeur, multi) {
   renderQuestionnaire();
 }
 
+function ajouterMateriau(input) {
+  const v = input.value.trim();
+  if (!v) return;
+  const val = MATERIAUX_OPTIONS.find(m => m.toLowerCase() === v.toLowerCase()) || v;
+  lireChampsLibres();
+  if (!rep.materiaux.includes(val)) rep.materiaux.push(val);
+  renderQuestionnaire();
+  document.getElementById('q-mat')?.focus();
+}
+
 function choisirLot(n, coche) {
   lireChampsLibres();
   rep.lots = coche ? [...new Set([...rep.lots, n])].sort((a, b) => a - b) : rep.lots.filter(x => x !== n);
@@ -890,7 +924,7 @@ function choisirLot(n, coche) {
 
 // Garde les saisies libres quand on re-dessine le formulaire
 function lireChampsLibres() {
-  ['objectif', 'pemdPar', 'ponderation', 'surface'].forEach(k => {
+  ['objectif', 'pemdPar', 'ponderation', 'surface', 'extraitCctp', 'extraitEnv'].forEach(k => {
     const el = document.getElementById('q-' + k);
     if (el) rep[k] = el.value;
   });
@@ -913,8 +947,10 @@ function renderQuestionnaire() {
       <div class="df"><label>Type de réemploi (plusieurs choix)</label>
         <div class="checkboxes">${TYPE_OPTIONS.map(t => choix('types', t, t, true)).join('')}</div>
       </div>
-      <div class="df"><label>Matériaux visés (plusieurs choix)</label>
-        <div class="checkboxes">${MATERIAUX_OPTIONS.map(t => choix('materiaux', t, t, true)).join('')}</div>
+      <div class="df"><label>Matériaux visés (taper pour chercher, Entrée pour ajouter)</label>
+        <input type="text" id="q-mat" list="liste-materiaux" placeholder="Ex : tuile, radiateur, parquet…" onchange="ajouterMateriau(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterMateriau(this);}"/>
+        <datalist id="liste-materiaux">${MATERIAUX_OPTIONS.map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+        <div class="mat-picked">${rep.materiaux.map(t => `<button type="button" class="cbx on" title="Retirer" onclick="choisir('materiaux', ${JSON.stringify(t).replace(/"/g, '&quot;')}, true)">${esc(t)}<i class="ti ti-x"></i></button>`).join('')}</div>
       </div>
       <div class="two">
         <div class="df"><label>Objectif chiffré (%)</label><input type="text" inputmode="decimal" id="q-objectif" value="${esc(rep.objectif || '')}" placeholder="Ex : 20"/></div>
@@ -945,6 +981,12 @@ function renderQuestionnaire() {
       <div class="df"><label>Surface de plancher (m²)</label><input type="text" inputmode="decimal" id="q-surface" value="${esc(rep.surface || '')}"/></div>
       <div class="df"><label>Documents du marché</label><div class="checkboxes">${QUALITE_OPTIONS.map(q => choix('qualite', q, q)).join('')}</div></div>
     </div>
+  </div>
+
+  <div class="q-block">
+    <div class="q-title"><i class="ti ti-clipboard-text"></i> Extraits copiés-collés</div>
+    <div class="df"><label>Clause(s) du CCTP</label><textarea style="height:80px;resize:vertical;" id="q-extraitCctp" placeholder="Coller ici la clause réemploi du CCTP">${esc(rep.extraitCctp || '')}</textarea></div>
+    <div class="df"><label>Critères environnementaux</label><textarea style="height:80px;resize:vertical;" id="q-extraitEnv" placeholder="Coller ici les critères environnementaux (RC, avis)">${esc(rep.extraitEnv || '')}</textarea></div>
   </div>`;
 
   document.getElementById('q-form').innerHTML = h;
@@ -981,6 +1023,8 @@ async function valider() {
     surface_plancher_m2: nombre(rep.surface),
     qualite_documents: rep.qualite,
     analyse_notes: document.getElementById('g-notes').value.trim() || null,
+    extrait_cctp: (rep.extraitCctp || '').trim() || null,
+    extrait_criteres_env: (rep.extraitEnv || '').trim() || null,
     analyse_le: new Date().toISOString(),
   };
 
