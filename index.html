@@ -975,14 +975,21 @@ function renderCard() {
     h += `<div class="extrait">L'annonce ne parle pas de réemploi.</div>`;
   }
 
-  // Ce qu'a trouvé la lecture automatique du DCE
-  if (m.dce_reemploi !== null && m.dce_reemploi !== undefined || m.dce_mots_trouves?.length) {
-    const ex = Array.isArray(m.dce_extraits) ? m.dce_extraits.slice(0, 3) : [];
+  // Ce qu'a trouvé la lecture automatique du DCE (flux de nuit n8n)
+  const dce = lireDce(m);
+  if (dce) {
     h += `<div class="dce-box"><i class="ti ti-file-search"></i> DCE lu automatiquement : ${m.dce_reemploi ? 'parle de réemploi' : 'ne parle pas de réemploi'}${m.dce_mots_trouves?.length ? ' ('+esc(m.dce_mots_trouves.join(', '))+')' : ''}</div>`;
-    ex.forEach(e => {
-      const t = typeof e === 'string' ? e : (e.extrait || e.texte || JSON.stringify(e));
-      const where = typeof e === 'object' && e ? [e.fichier || e.nom_fichier, e.page ? 'p.'+e.page : ''].filter(Boolean).join(' ') : '';
-      h += `<div class="extrait">${where ? '<strong style="font-style:normal;">'+esc(where)+'</strong> ' : ''}${esc(String(t).substring(0, 300))}</div>`;
+    if (dce.pemd.length) {
+      h += `<div class="dce-box"><i class="ti ti-clipboard-check"></i> Diag PEMD joint au DCE : ${esc(dce.pemd.map(f => f.split('/').pop()).join(', '))}</div>`;
+    } else if (dce.lu) {
+      h += `<div class="dce-box"><i class="ti ti-clipboard-x"></i> Pas de diag PEMD trouvé dans les pièces lues</div>`;
+    }
+    if (dce.criteres.length) {
+      h += `<div class="dce-box"><i class="ti ti-scale"></i> Critères : ${esc(dce.criteres.map(c => c.critere + (c.poids != null ? ' ' + c.poids + ' ' + (c.unite || '') : '')).join(' · '))}</div>`;
+    }
+    dce.clauses.forEach(e => {
+      const where = [e.fichier, e.mot ? '(' + e.mot + ')' : ''].filter(Boolean).join(' ');
+      h += `<div class="extrait">${where ? '<strong style="font-style:normal;">'+esc(where)+'</strong> ' : ''}${esc(String(e.extrait).substring(0, 400))}</div>`;
     });
   }
 
@@ -991,7 +998,30 @@ function renderCard() {
   document.getElementById('g-notes').style.height = '';
   rep = { reemploi: null, force: null, types: [], materiaux: [], lots: [],
           pemd: null, pemdJoint: null, critere: null, qualite: null };
+  // Pré-remplit ce que la lecture du DCE a trouvé, modifiable avant d'enregistrer
+  if (dce?.lu) {
+    rep.pemdJoint = dce.pemd.length > 0;
+    const env = dce.criteres.find(c => c.unite === '%' && /environ|durable|rse|carbone|déchet/i.test(c.critere));
+    if (env) rep.ponderation = String(env.poids);
+  }
   renderQuestionnaire();
+}
+
+// Résultat de la lecture automatique du DCE : dce_extraits est un objet
+// { clauses, pemd_fichiers, criteres_notation, cctp_trouve, … }
+const MOTS_FORTS = ['réemploi', 'dépose soignée / en vue de réemploi', 'dépose et repose', 'matériaux de réemploi / seconde main', 'ressourcerie / filière réemploi', 'objectif chiffré'];
+function lireDce(m) {
+  const x = m.dce_extraits;
+  if (!x && !m.dce_mots_trouves?.length && m.dce_reemploi == null) return null;
+  const brut = Array.isArray(x) ? x.map(e => typeof e === 'string' ? { extrait: e } : e) : (x?.clauses || []);
+  const vus = new Set();
+  const clauses = brut
+    .filter(e => e && e.extrait && e.mot !== 'mention diagnostic PEMD')
+    .sort((a, b) => (MOTS_FORTS.includes(b.mot) ? 1 : 0) - (MOTS_FORTS.includes(a.mot) ? 1 : 0))
+    .filter(e => { const k = e.extrait.slice(20, 120); if (vus.has(k)) return false; vus.add(k); return true; })
+    .slice(0, 3);
+  const criteres = (x?.criteres_notation || []).filter(c => c && c.critere);
+  return { clauses, criteres, pemd: x?.pemd_fichiers || [], lu: m.dce_statut === 'analyse' };
 }
 
 // ════════════════════════
