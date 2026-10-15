@@ -1140,7 +1140,7 @@ async function valider() {
   const m = queue[0];
   lireChampsLibres();
   if (rep.reemploi === null) { showToast('Indique si le marché demande du réemploi', 'red'); return; }
-  const btn    = document.querySelector('.btn-valider');
+  const btn    = document.querySelector('#main-card .btn-valider');
   btn.disabled = true;
   btn.innerHTML = '<i class="ti ti-loader-2"></i> Enregistrement…';
 
@@ -1182,7 +1182,7 @@ async function valider() {
 
 async function horsCible() {
   const m   = queue[0];
-  const btn = document.querySelector('.btn-hors-cible');
+  const btn = document.querySelector('#main-card .btn-hors-cible');
   btn.disabled = true;
   btn.innerHTML = '<i class="ti ti-loader-2"></i>';
   try {
